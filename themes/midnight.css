@@ -1,0 +1,30 @@
+:root {
+  --umm-bg: #0c0c18;
+  --umm-surface: #161625;
+  --umm-surface-hover: #1e1e32;
+  --umm-surface-active: #26263e;
+  --umm-sidebar-bg: #111120;
+  --umm-sidebar-width: 260px;
+  --umm-primary: #818cf8;
+  --umm-primary-hover: #6366f1;
+  --umm-primary-text: #ffffff;
+  --umm-text: #e2e8f0;
+  --umm-text-secondary: #94a3b8;
+  --umm-text-muted: #64748b;
+  --umm-border: #252540;
+  --umm-success: #34d399;
+  --umm-danger: #f87171;
+  --umm-space-xs: 4px;
+  --umm-space-sm: 8px;
+  --umm-space-md: 12px;
+  --umm-space-lg: 16px;
+  --umm-space-xl: 24px;
+  --umm-radius-sm: 6px;
+  --umm-radius-md: 8px;
+  --umm-radius-lg: 12px;
+  --umm-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --umm-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --umm-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --umm-font: 'Inter', system-ui, -apple-system, sans-serif;
+  --umm-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
