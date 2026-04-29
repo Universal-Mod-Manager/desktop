@@ -1,14 +1,10 @@
-name: Tauri Build
+name: Build
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   workflow_dispatch:
 
 jobs:
@@ -19,23 +15,19 @@ jobs:
         include:
           - platform: self-hosted
             os-name: Linux
-            rust-target: x86_64-unknown-linux-gnu
           - platform: windows-latest
             os-name: Windows
-            rust-target: x86_64-pc-windows-msvc
           - platform: macos-latest
-            os-name: macOS (Apple Silicon + Intel)
-            rust-target: universal-apple-darwin
+            os-name: MacOS
 
     name: Build – ${{ matrix.os-name }}
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'Linux'
+        if: matrix.os-name == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -54,28 +46,21 @@ jobs:
         with:
           version: latest
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.os-name == 'MacOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: ./src-tauri -> target
 
-      - name: Install Node dependencies
-        run: pnpm install
+      - run: pnpm install
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: tauri-apps/tauri-action@v0
         with:
-          args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
+          args: ${{ matrix.os-name == 'macOS' && '--target universal-apple-darwin' || '' }}
