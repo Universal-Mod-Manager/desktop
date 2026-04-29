@@ -6,6 +6,23 @@ function unwrap<T>(result: Result<T, string>): T {
     throw new Error(result.error);
 }
 
+function compactStringRecord(record: Partial<Record<string, string>>): Record<string, string> {
+    const entries = Object.entries(record).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+    );
+
+    return Object.fromEntries(entries);
+}
+
+function reorderModList(mods: ModInfo[], modIds: string[]): ModInfo[] {
+    return modIds
+        .map((id, i) => {
+            const mod = mods.find((m) => m.id === id);
+            return mod ? { ...mod, priority: i } : null;
+        })
+        .filter((m): m is ModInfo => m !== null);
+}
+
 class AppState {
     plugins = $state<PluginInfo[]>([]);
     activePluginId = $state<string | null>(null);
@@ -20,7 +37,7 @@ class AppState {
         try {
             this.plugins = unwrap(await commands.listPlugins());
             this.themes = unwrap(await commands.listThemes());
-            this.gamePaths = unwrap(await commands.getGamePaths());
+            this.gamePaths = compactStringRecord(unwrap(await commands.getGamePaths()));
             this.activeThemeName = unwrap(await commands.getActiveTheme());
             if (this.activeThemeName) {
                 this.themeCss = unwrap(await commands.getThemeCss(this.activeThemeName));
@@ -55,13 +72,15 @@ class AppState {
     }
 
     async reorderMods(modIds: string[]) {
-        unwrap(await commands.reorderMods(modIds));
-        this.mods = modIds
-            .map((id, i) => {
-                const mod = this.mods.find((m) => m.id === id);
-                return mod ? { ...mod, priority: i } : null;
-            })
-            .filter((m): m is ModInfo => m !== null);
+        const previousMods = this.mods;
+        this.mods = reorderModList(previousMods, modIds);
+
+        try {
+            unwrap(await commands.reorderMods(modIds));
+        } catch (error) {
+            this.mods = previousMods;
+            throw error;
+        }
     }
 
     async browseGamePath(pluginId: string) {

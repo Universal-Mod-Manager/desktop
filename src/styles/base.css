@@ -32,6 +32,12 @@
   --umm-focus-ring: 2px solid var(--umm-primary);
   --umm-primary-tint: color-mix(in srgb, var(--umm-primary) 10%, transparent);
   --umm-transition: 150ms ease;
+  --umm-drag-handle-size: 28px;
+  --umm-drag-handle-color: var(--umm-text-muted);
+  --umm-drag-handle-hover-bg: var(--umm-surface-hover);
+  --umm-drag-surface: var(--umm-surface);
+  --umm-drag-shadow: var(--umm-shadow-lg);
+  --umm-drag-transition: 120ms ease;
 }
 
 *, *::before, *::after {
@@ -131,9 +137,14 @@ body {
 }
 
 .umm-mod-list {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--umm-space-sm);
+}
+
+.umm-mod-list[data-dragging] {
+  user-select: none;
 }
 
 .umm-mod-list-empty {
@@ -144,6 +155,7 @@ body {
 }
 
 .umm-mod-list-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--umm-space-md);
@@ -151,7 +163,11 @@ body {
   background: var(--umm-surface);
   border: var(--umm-border-rule);
   border-radius: var(--umm-radius-md);
-  transition: background var(--umm-transition), box-shadow var(--umm-transition);
+  transform: translate3d(0, var(--umm-drag-y, 0), 0);
+  transition:
+    background var(--umm-transition),
+    box-shadow var(--umm-transition),
+    transform var(--umm-drag-transition);
 }
 
 .umm-mod-list-item:hover {
@@ -159,8 +175,68 @@ body {
   box-shadow: var(--umm-shadow-sm);
 }
 
+.umm-mod-list[data-dragging] .umm-mod-list-item {
+  will-change: transform;
+}
+
+.umm-mod-list[data-drop-committing] .umm-mod-list-item {
+  transition:
+    background var(--umm-transition),
+    box-shadow var(--umm-transition);
+}
+
+.umm-mod-list-item[data-dragging] {
+  z-index: 2;
+  background: var(--umm-drag-surface);
+  box-shadow: var(--umm-drag-shadow);
+  cursor: grabbing;
+  transition: none;
+}
+
 .umm-mod-list-item[data-disabled] {
   opacity: 0.5;
+}
+
+.umm-mod-list-item-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--umm-drag-handle-size);
+  height: var(--umm-drag-handle-size);
+  color: var(--umm-drag-handle-color);
+  background: transparent;
+  border: none;
+  border-radius: var(--umm-radius-sm);
+  cursor: grab;
+  flex-shrink: 0;
+  padding: 0;
+  touch-action: none;
+  transition:
+    background var(--umm-transition),
+    color var(--umm-transition);
+}
+
+.umm-mod-list-item-drag-handle:hover {
+  background: var(--umm-drag-handle-hover-bg);
+  color: var(--umm-text);
+}
+
+.umm-mod-list-item-drag-handle:focus-visible {
+  outline: var(--umm-focus-ring);
+  outline-offset: 2px;
+}
+
+.umm-mod-list-item[data-dragging] .umm-mod-list-item-drag-handle {
+  cursor: grabbing;
+}
+
+.umm-mod-list-item-drag-handle-icon {
+  width: 14px;
+  height: 18px;
+  background-image: radial-gradient(currentColor 1.25px, transparent 1.25px);
+  background-position: 0 0;
+  background-size: 7px 6px;
+  opacity: 0.85;
 }
 
 .umm-mod-list-item-priority {

@@ -1,6 +1,9 @@
 <script lang="ts">
     import { Switch } from "bits-ui";
     import type { ModInfo } from "$lib/bindings";
+    import type { Action } from "svelte/action";
+
+    type DragRowAction = Action<HTMLElement, string>;
 
     let {
         mod,
@@ -8,12 +11,20 @@
         total,
         onToggle,
         onReorder,
+        dragRow,
+        onDragStart,
+        dragStyle,
+        isDragging = false,
     }: {
         mod: ModInfo;
         index: number;
         total: number;
         onToggle: (enabled: boolean) => void;
         onReorder: (newIndex: number) => void;
+        dragRow: DragRowAction;
+        onDragStart: (event: PointerEvent) => void;
+        dragStyle?: string;
+        isDragging?: boolean;
     } = $props();
 
     let inputValue = $state("");
@@ -35,8 +46,20 @@
 <div
     class="umm-mod-list-item"
     data-disabled={!mod.enabled || undefined}
+    data-dragging={isDragging || undefined}
     role="listitem"
+    style={dragStyle}
+    use:dragRow={mod.id}
 >
+    <button
+        class="umm-mod-list-item-drag-handle"
+        type="button"
+        aria-label={`Drag ${mod.name} to reorder`}
+        aria-pressed={isDragging}
+        onpointerdown={onDragStart}
+    >
+        <span class="umm-mod-list-item-drag-handle-icon" aria-hidden="true"></span>
+    </button>
     <input
         class="umm-mod-list-item-priority"
         type="number"
