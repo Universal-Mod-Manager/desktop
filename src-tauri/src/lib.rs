@@ -99,7 +99,11 @@ fn setup_dev_environment(data_dir: &std::path::Path, config: &mut AppConfig) {
         .unwrap()
         .to_path_buf();
 
-    for (id, dir_name) in [("skyrim-se", "skyrim-se"), ("witcher3", "witcher3")] {
+    for (id, dir_name) in [
+        ("skyrim-se", "skyrim-se"),
+        ("witcher3", "witcher3"),
+        ("security-test", "security-test"),
+    ] {
         if !config.game_paths.contains_key(id) {
             let fake_path = project_root.join(format!(".ignored/fake-games/{}", dir_name));
             if fake_path.exists() {
@@ -124,9 +128,10 @@ fn setup_dev_environment(data_dir: &std::path::Path, config: &mut AppConfig) {
         }
     }
 
-    for (id, wasm_name) in [
-        ("skyrim-se", "skyrim_se_plugin"),
-        ("witcher3", "witcher3_plugin"),
+    for (id, wasm_name, target) in [
+        ("skyrim-se", "skyrim_se_plugin", "wasm32-unknown-unknown"),
+        ("witcher3", "witcher3_plugin", "wasm32-unknown-unknown"),
+        ("security-test", "security_test_plugin", "wasm32-wasip1"),
     ] {
         let plugin_dest = data_dir.join("plugins").join(id);
         let plugin_src = project_root.join(format!("plugins/{}", id));
@@ -136,10 +141,7 @@ fn setup_dev_environment(data_dir: &std::path::Path, config: &mut AppConfig) {
                 plugin_src.join("metadata.json"),
                 plugin_dest.join("metadata.json"),
             );
-            let wasm_src = plugin_src.join(format!(
-                "target/wasm32-unknown-unknown/release/{}.wasm",
-                wasm_name
-            ));
+            let wasm_src = plugin_src.join(format!("target/{}/release/{}.wasm", target, wasm_name));
             if wasm_src.exists() {
                 let _ = std::fs::copy(&wasm_src, plugin_dest.join("plugin.wasm"));
             }

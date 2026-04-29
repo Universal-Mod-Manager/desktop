@@ -89,7 +89,7 @@ impl PluginManager {
             anyhow::bail!("WASM file not found: {}", wasm_path.to_string_lossy());
         }
 
-        let manifest = extism::Manifest::new([extism::Wasm::file(&wasm_path)]);
+        let manifest = extism::Manifest::new([extism::Wasm::file(&wasm_path)]).disallow_all_hosts();
         let mut ext_plugin = extism::PluginBuilder::new(manifest)
             .with_wasi(true)
             .build()
@@ -100,5 +100,124 @@ impl PluginManager {
             .map_err(|e| anyhow::anyhow!("Plugin call '{}' failed: {}", fn_name, e))?;
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static NEXT_TEST_DIR_ID: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestDir {
+        path: PathBuf,
+    }
+
+    impl TestDir {
+        fn new(name: &str) -> Self {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock before UNIX_EPOCH")
+                .as_nanos();
+            let id = NEXT_TEST_DIR_ID.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir()
+                .join(format!("umm-{name}-{}-{nanos}-{id}", std::process::id()));
+            fs::create_dir_all(&path).expect("create temp test directory");
+            Self { path }
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn project_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("src-tauri should have a parent directory")
+            .to_path_buf()
+    }
+
+    fn security_test_manager() -> (TestDir, PluginManager) {
+        let temp_dir = TestDir::new("plugin-security");
+        let project_root = project_root();
+        let plugin_src = project_root.join("plugins/security-test");
+        let wasm_src = plugin_src.join("target/wasm32-wasip1/release/security_test_plugin.wasm");
+
+        assert!(
+            wasm_src.exists(),
+            "security-test WASM missing; run `cargo build --release --target wasm32-wasip1` in plugins/security-test first"
+        );
+
+        let plugin_dest = temp_dir.path.join("plugins/security-test");
+        fs::create_dir_all(&plugin_dest).expect("create plugin test directory");
+        fs::copy(
+            plugin_src.join("metadata.json"),
+            plugin_dest.join("metadata.json"),
+        )
+        .expect("copy plugin metadata");
+        fs::copy(wasm_src, plugin_dest.join("plugin.wasm")).expect("copy plugin wasm");
+        fs::write(plugin_dest.join("icon.png"), []).expect("create plugin icon");
+
+        let mut manager = PluginManager::new(&temp_dir.path);
+        manager
+            .discover_plugins()
+            .expect("discover security-test plugin");
+        (temp_dir, manager)
+    }
+
+    fn assert_probe_blocked(json: &str, expected_operations: &[&str]) {
+        let value: Value = serde_json::from_str(json).expect("probe output should be JSON");
+        let results = value["results"]
+            .as_array()
+            .expect("probe output should include results array");
+
+        for expected_operation in expected_operations {
+            let result = results
+                .iter()
+                .find(|item| item["operation"].as_str() == Some(expected_operation))
+                .unwrap_or_else(|| panic!("missing probe operation: {expected_operation}"));
+
+            assert_eq!(
+                result["success"].as_bool(),
+                Some(false),
+                "probe operation should be blocked: {expected_operation}, output: {json}"
+            );
+        }
+    }
+
+    #[test]
+    fn security_test_plugin_cannot_make_http_requests() {
+        let (_temp_dir, manager) = security_test_manager();
+
+        match manager.call_plugin_fn("security-test", "probe_http", "") {
+            Ok(output) => assert_probe_blocked(&output, &["http_get_example"]),
+            Err(err) => {
+                let message = err.to_string();
+                assert!(
+                    message.contains("Plugin call 'probe_http' failed"),
+                    "unexpected HTTP probe failure: {message}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn security_test_plugin_cannot_access_raw_filesystem() {
+        let (_temp_dir, manager) = security_test_manager();
+
+        let output = manager
+            .call_plugin_fn("security-test", "probe_filesystem", "")
+            .expect("call filesystem security probe");
+
+        assert_probe_blocked(
+            &output,
+            &["list_current_directory", "create_file", "delete_file"],
+        );
     }
 }
