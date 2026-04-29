@@ -53,6 +53,22 @@ async selectPlugin(pluginId: string) : Promise<Result<ModInfo[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getGamePaths() : Promise<Result<Partial<{ [key in string]: string }>, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_game_paths") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setGamePath(pluginId: string, path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_game_path", { pluginId, path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listThemes() : Promise<Result<ThemeInfo[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_themes") };

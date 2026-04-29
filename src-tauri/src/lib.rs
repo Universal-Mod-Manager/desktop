@@ -19,6 +19,8 @@ pub fn run() {
             commands::plugins::list_plugins,
             commands::plugins::get_active_plugin,
             commands::plugins::select_plugin,
+            commands::settings::get_game_paths,
+            commands::settings::set_game_path,
             commands::themes::list_themes,
             commands::themes::get_theme_css,
             commands::themes::get_active_theme,
@@ -36,6 +38,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             let data_dir = app.path().app_data_dir()?;

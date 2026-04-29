@@ -380,6 +380,58 @@ body {
   flex-shrink: 0;
 }
 
+.umm-game-path {
+  margin-top: var(--umm-space-sm);
+}
+
+.umm-game-path-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--umm-space-sm);
+  width: 100%;
+  padding: var(--umm-space-xs) var(--umm-space-sm);
+  background: transparent;
+  border: 1px dashed var(--umm-border);
+  border-radius: var(--umm-radius-sm);
+  font-size: 11px;
+  color: var(--umm-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--umm-transition), color var(--umm-transition);
+  font-family: var(--umm-font-mono);
+  text-align: left;
+}
+
+.umm-game-path-btn:hover {
+  border-color: var(--umm-primary);
+  color: var(--umm-text);
+}
+
+.umm-game-path-btn:focus-visible {
+  outline: var(--umm-focus-ring);
+  outline-offset: -1px;
+}
+
+.umm-game-path-icon {
+  color: var(--umm-text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.umm-game-path-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.umm-game-path-text--empty {
+  font-family: var(--umm-font);
+  font-style: italic;
+  color: var(--umm-text-muted);
+}
+
 @keyframes umm-dropdown-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }

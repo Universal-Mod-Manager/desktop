@@ -1,5 +1,6 @@
 <script lang="ts">
     import PluginSelector from "./PluginSelector.svelte";
+    import GamePathSetting from "./GamePathSetting.svelte";
     import ThemeSelector from "./ThemeSelector.svelte";
 </script>
 
@@ -10,6 +11,7 @@
     <div class="umm-sidebar-section">
         <p class="umm-sidebar-section-label">Game</p>
         <PluginSelector />
+        <GamePathSetting />
     </div>
     <div class="umm-sidebar-footer">
         <p class="umm-sidebar-section-label">Theme</p>

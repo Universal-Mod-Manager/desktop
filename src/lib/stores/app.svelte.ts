@@ -1,4 +1,5 @@
 import { commands, type ModInfo, type PluginInfo, type ThemeInfo, type Result } from "$lib/bindings";
+import { open } from "@tauri-apps/plugin-dialog";
 
 function unwrap<T>(result: Result<T, string>): T {
     if (result.status === "ok") return result.data;
@@ -12,12 +13,14 @@ class AppState {
     themes = $state<ThemeInfo[]>([]);
     activeThemeName = $state("");
     themeCss = $state("");
+    gamePaths = $state<Record<string, string>>({});
     loading = $state(true);
 
     async initialize() {
         try {
             this.plugins = unwrap(await commands.listPlugins());
             this.themes = unwrap(await commands.listThemes());
+            this.gamePaths = unwrap(await commands.getGamePaths());
             this.activeThemeName = unwrap(await commands.getActiveTheme());
             if (this.activeThemeName) {
                 this.themeCss = unwrap(await commands.getThemeCss(this.activeThemeName));
@@ -34,8 +37,14 @@ class AppState {
     }
 
     async selectPlugin(pluginId: string) {
-        this.mods = unwrap(await commands.selectPlugin(pluginId));
         this.activePluginId = pluginId;
+
+        if (!this.gamePaths[pluginId]) {
+            this.mods = [];
+            return;
+        }
+
+        this.mods = unwrap(await commands.selectPlugin(pluginId));
     }
 
     async toggleMod(modId: string, enabled: boolean) {
@@ -53,6 +62,22 @@ class AppState {
                 return mod ? { ...mod, priority: i } : null;
             })
             .filter((m): m is ModInfo => m !== null);
+    }
+
+    async browseGamePath(pluginId: string) {
+        const selected = await open({
+            directory: true,
+            multiple: false,
+            title: "Select game directory",
+        });
+        if (!selected) return;
+
+        unwrap(await commands.setGamePath(pluginId, selected));
+        this.gamePaths = { ...this.gamePaths, [pluginId]: selected };
+
+        if (this.activePluginId === pluginId) {
+            this.mods = unwrap(await commands.selectPlugin(pluginId));
+        }
     }
 
     async refreshThemes() {
