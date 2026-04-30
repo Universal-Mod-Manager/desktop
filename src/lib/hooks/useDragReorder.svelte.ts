@@ -27,10 +27,19 @@ type ActiveDrag = {
     shiftDown: number;
     y: number;
     handle: HTMLElement;
+    scrollContainer: HTMLElement | null;
+    initialScrollTop: number;
+    latestClientY: number;
+    initialRows: RowSnapshot[];
     rows: RowSnapshot[];
 };
 
 type DragRowAction = Action<HTMLElement, string>;
+
+type AutoScrollIntent = {
+    direction: -1 | 1;
+    intensity: number;
+};
 
 function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
@@ -42,6 +51,9 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
     let active = $state<ActiveDrag | null>(null);
     let isDropCommitting = $state(false);
     let dropCommitFrame: number | null = null;
+    let autoScrollFrame: number | null = null;
+    let autoScrollStartedAt: number | null = null;
+    let autoScrollLastFrameAt: number | null = null;
     const rowNodes = new Map<string, HTMLElement>();
 
     const list: Action<HTMLElement> = (node) => {
@@ -49,10 +61,14 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
 
         return {
             destroy() {
+                if (active) {
+                    endDrag(false);
+                }
                 if (listNode === node) {
                     listNode = null;
                 }
                 clearDropCommitFrame();
+                stopAutoScroll();
             },
         };
     };
@@ -101,6 +117,7 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
         const draggedSnapshot = rows.find((snapshot) => snapshot.id === id);
         if (!draggedSnapshot) return;
 
+        const scrollContainer = getScrollContainer();
         const bounds = getDragBounds(draggedSnapshot.height);
         const previousRow = rows[fromIndex - 1];
         const nextRow = rows[fromIndex + 1];
@@ -130,6 +147,10 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
             shiftDown: draggedSnapshot.height + gapAfter,
             y: 0,
             handle,
+            scrollContainer,
+            initialScrollTop: scrollContainer?.scrollTop ?? 0,
+            latestClientY: event.clientY,
+            initialRows: rows,
             rows,
         };
 
@@ -138,8 +159,10 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
         window.addEventListener("pointercancel", handlePointerCancel);
         window.addEventListener("keydown", handleKeyDown);
         window.addEventListener("blur", handleWindowBlur);
+        scrollContainer?.addEventListener("scroll", handleScroll, { passive: true });
 
         updateDragPosition(event.clientY);
+        updateAutoScroll();
     }
 
     function measureRows() {
@@ -163,7 +186,7 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
 
     function getDragBounds(rowHeight: number) {
         const listRect = listNode?.getBoundingClientRect();
-        const scrollContainer = listNode?.closest<HTMLElement>(".umm-content-body");
+        const scrollContainer = getScrollContainer();
         const containerRect = scrollContainer?.getBoundingClientRect();
         const top = Math.max(
             listRect?.top ?? Number.NEGATIVE_INFINITY,
@@ -179,20 +202,49 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
         return { minTop, maxTop };
     }
 
+    function getScrollContainer() {
+        return listNode?.closest<HTMLElement>(".umm-content-body") ?? null;
+    }
+
     function updateDragPosition(clientY: number) {
         if (!active) return;
 
+        const drag = refreshDragMeasurements({
+            ...active,
+            latestClientY: clientY,
+        });
         const top = clamp(
-            clientY - active.pointerOffsetY,
-            active.minTop,
-            active.maxTop,
+            clientY - drag.pointerOffsetY,
+            drag.minTop,
+            drag.maxTop,
         );
-        const center = top + active.height / 2;
+        const center = top + drag.height / 2;
 
         active = {
-            ...active,
-            targetIndex: getTargetIndex(top, center, active),
-            y: top - active.originalTop,
+            ...drag,
+            targetIndex: getTargetIndex(top, center, drag),
+            y: top - drag.originalTop,
+        };
+    }
+
+    function refreshDragMeasurements(drag: ActiveDrag): ActiveDrag {
+        const scrollTop = drag.scrollContainer?.scrollTop ?? 0;
+        const scrollDelta = scrollTop - drag.initialScrollTop;
+        const rows = drag.initialRows.map((row) => ({
+            ...row,
+            top: row.top - scrollDelta,
+            bottom: row.bottom - scrollDelta,
+            center: row.center - scrollDelta,
+        }));
+        const draggedRow = rows.find((row) => row.id === drag.id);
+        const bounds = getDragBounds(drag.height);
+
+        return {
+            ...drag,
+            rows,
+            originalTop: draggedRow?.top ?? drag.originalTop,
+            minTop: bounds.minTop,
+            maxTop: bounds.maxTop,
         };
     }
 
@@ -220,6 +272,7 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
 
         event.preventDefault();
         updateDragPosition(event.clientY);
+        updateAutoScroll();
     }
 
     function handlePointerUp(event: PointerEvent) {
@@ -245,6 +298,13 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
         endDrag(false);
     }
 
+    function handleScroll() {
+        if (!active) return;
+
+        updateDragPosition(active.latestClientY);
+        updateAutoScroll();
+    }
+
     function endDrag(shouldCommit: boolean) {
         const drag = active;
         if (!drag) return;
@@ -253,8 +313,8 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
         if (shouldReorder) {
             disableTransitionsForDropCommit();
         }
+        cleanupDragListeners(drag);
         active = null;
-        cleanupDragListeners();
 
         if (drag.handle.hasPointerCapture(drag.pointerId)) {
             drag.handle.releasePointerCapture(drag.pointerId);
@@ -263,6 +323,150 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
         if (shouldReorder) {
             onReorder(drag.fromIndex, drag.targetIndex);
         }
+    }
+
+    function updateAutoScroll() {
+        if (!active || !getAutoScrollIntent(active)) {
+            stopAutoScroll();
+            return;
+        }
+
+        startAutoScroll();
+    }
+
+    function startAutoScroll() {
+        if (autoScrollFrame !== null) return;
+
+        autoScrollStartedAt = null;
+        autoScrollLastFrameAt = null;
+        autoScrollFrame = window.requestAnimationFrame(runAutoScroll);
+    }
+
+    function runAutoScroll(timestamp: number) {
+        autoScrollFrame = null;
+
+        const drag = active;
+        const intent = drag ? getAutoScrollIntent(drag) : null;
+        if (!drag || !intent || !drag.scrollContainer) {
+            stopAutoScroll();
+            return;
+        }
+
+        if (autoScrollStartedAt === null) {
+            autoScrollStartedAt = timestamp;
+        }
+
+        const frameDelta = autoScrollLastFrameAt === null
+            ? 16
+            : clamp(timestamp - autoScrollLastFrameAt, 0, 50);
+        autoScrollLastFrameAt = timestamp;
+
+        const scrollContainer = drag.scrollContainer;
+        const maxScrollTop = getMaxScrollTop(scrollContainer);
+        const beforeScrollTop = scrollContainer.scrollTop;
+        const pixelsPerSecond = getCssNumber("--umm-drag-autoscroll-max-speed", 900);
+        const ramp = getAutoScrollRamp(timestamp);
+        const scrollDelta = intent.direction
+            * intent.intensity
+            * ramp
+            * pixelsPerSecond
+            * (frameDelta / 1000);
+
+        scrollContainer.scrollTop = clamp(
+            beforeScrollTop + scrollDelta,
+            0,
+            maxScrollTop,
+        );
+
+        if (scrollContainer.scrollTop === beforeScrollTop) {
+            stopAutoScroll();
+            return;
+        }
+
+        if (active) {
+            updateDragPosition(active.latestClientY);
+        }
+
+        autoScrollFrame = window.requestAnimationFrame(runAutoScroll);
+    }
+
+    function stopAutoScroll() {
+        if (autoScrollFrame !== null) {
+            window.cancelAnimationFrame(autoScrollFrame);
+            autoScrollFrame = null;
+        }
+
+        autoScrollStartedAt = null;
+        autoScrollLastFrameAt = null;
+    }
+
+    function getAutoScrollIntent(drag: ActiveDrag): AutoScrollIntent | null {
+        const scrollContainer = drag.scrollContainer;
+        if (!scrollContainer) return null;
+
+        const containerRect = scrollContainer.getBoundingClientRect();
+        if (drag.height >= containerRect.height) return null;
+
+        const edgeSize = getAutoScrollEdgeSize(containerRect.height);
+        const draggedCenter = drag.originalTop + drag.y + drag.height / 2;
+        const distanceFromTop = draggedCenter - containerRect.top;
+        const distanceFromBottom = containerRect.bottom - draggedCenter;
+
+        if (distanceFromTop < edgeSize && scrollContainer.scrollTop > 0) {
+            return {
+                direction: -1,
+                intensity: getAutoScrollIntensity(distanceFromTop, edgeSize),
+            };
+        }
+
+        if (
+            distanceFromBottom < edgeSize
+            && scrollContainer.scrollTop < getMaxScrollTop(scrollContainer)
+        ) {
+            return {
+                direction: 1,
+                intensity: getAutoScrollIntensity(distanceFromBottom, edgeSize),
+            };
+        }
+
+        return null;
+    }
+
+    function getAutoScrollEdgeSize(containerHeight: number) {
+        const ratio = getCssNumber("--umm-drag-autoscroll-edge-ratio", 0.18);
+        const min = getCssNumber("--umm-drag-autoscroll-edge-min", 48);
+        const max = getCssNumber("--umm-drag-autoscroll-edge-max", 120);
+
+        return clamp(containerHeight * ratio, min, max);
+    }
+
+    function getAutoScrollIntensity(distanceFromEdge: number, edgeSize: number) {
+        const maxSpeedZone = edgeSize * 0.75;
+        const proximity = clamp((edgeSize - distanceFromEdge) / maxSpeedZone, 0, 1);
+
+        return proximity * proximity;
+    }
+
+    function getAutoScrollRamp(timestamp: number) {
+        const startedAt = autoScrollStartedAt ?? timestamp;
+        const delay = getCssNumber("--umm-drag-autoscroll-ramp-delay", 250);
+        const duration = getCssNumber("--umm-drag-autoscroll-ramp-duration", 1200);
+        const elapsed = Math.max(0, timestamp - startedAt - delay);
+        const progress = duration <= 0 ? 1 : clamp(elapsed / duration, 0, 1);
+
+        return 0.35 + 0.65 * (progress * progress);
+    }
+
+    function getMaxScrollTop(element: HTMLElement) {
+        return Math.max(0, element.scrollHeight - element.clientHeight);
+    }
+
+    function getCssNumber(name: string, fallback: number) {
+        const source = listNode ?? document.documentElement;
+        const raw = getComputedStyle(source).getPropertyValue(name).trim();
+        const value = Number.parseFloat(raw);
+
+        return Number.isFinite(value) ? value : fallback;
     }
 
     function disableTransitionsForDropCommit() {
@@ -285,12 +489,14 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
         isDropCommitting = false;
     }
 
-    function cleanupDragListeners() {
+    function cleanupDragListeners(drag?: ActiveDrag) {
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", handlePointerUp);
         window.removeEventListener("pointercancel", handlePointerCancel);
         window.removeEventListener("keydown", handleKeyDown);
         window.removeEventListener("blur", handleWindowBlur);
+        drag?.scrollContainer?.removeEventListener("scroll", handleScroll);
+        stopAutoScroll();
     }
 
     function getShiftOffset(id: string) {
