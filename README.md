@@ -1,6 +1,40 @@
-# Tauri + SvelteKit + TypeScript
+# UMM Desktop
 
-This template should help get you started developing with Tauri, SvelteKit and TypeScript in Vite.
+## Prerequisites
+
+- Node.js (LTS recommended)
+- Rust (latest stable)
+- pnpm
+
+## Setup
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+## Development
+
+Run the frontend in development mode:
+
+```bash
+pnpm dev
+```
+
+Run the full desktop application in development mode:
+
+```bash
+pnpm tauri dev
+```
+
+## Build
+
+Build for production:
+
+```bash
+pnpm tauri build
+```
 
 ## Recommended IDE Setup
 
