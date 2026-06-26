@@ -58,6 +58,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
+          targets: wasm32-wasip1
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
@@ -69,6 +70,9 @@ jobs:
 
       - name: Clippy (Linter)
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Build security test plugin
+        run: cargo build --release --target wasm32-wasip1 --manifest-path plugins/security-test/Cargo.toml
 
       - name: Rust Tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
