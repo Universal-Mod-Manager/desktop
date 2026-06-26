@@ -29,7 +29,7 @@ impl ModManager {
         let mods_path = Path::new(game_path).join(mod_directory);
         let mut discovered = if mods_path.exists() {
             let has_dir_mods = fs::read_dir(&mods_path)?.filter_map(|e| e.ok()).any(|e| {
-                e.file_type().map_or(false, |ft| ft.is_dir()) && e.path().join("mod.json").exists()
+                e.file_type().is_ok_and(|ft| ft.is_dir()) && e.path().join("mod.json").exists()
             });
 
             if has_dir_mods {

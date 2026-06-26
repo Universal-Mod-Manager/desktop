@@ -27,7 +27,7 @@ impl ThemeManager {
         for entry in fs::read_dir(&self.themes_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "css") {
+            if path.extension().is_some_and(|ext| ext == "css") {
                 let name = path.file_stem().unwrap().to_string_lossy().to_string();
                 themes.push(ThemeInfo {
                     is_active: self.active_theme.as_deref() == Some(name.as_str()),

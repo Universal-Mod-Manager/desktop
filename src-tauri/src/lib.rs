@@ -121,7 +121,7 @@ fn setup_dev_environment(data_dir: &std::path::Path, config: &mut AppConfig) {
         if let Ok(entries) = std::fs::read_dir(&themes_src) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map_or(false, |ext| ext == "css") {
+                if path.extension().is_some_and(|ext| ext == "css") {
                     let _ = std::fs::copy(&path, themes_dest.join(entry.file_name()));
                 }
             }
@@ -146,7 +146,7 @@ fn setup_dev_environment(data_dir: &std::path::Path, config: &mut AppConfig) {
                 let _ = std::fs::copy(&wasm_src, plugin_dest.join("plugin.wasm"));
             }
             if !plugin_dest.join("icon.png").exists() {
-                let _ = std::fs::write(plugin_dest.join("icon.png"), &[]);
+                let _ = std::fs::write(plugin_dest.join("icon.png"), []);
             }
         }
     }
