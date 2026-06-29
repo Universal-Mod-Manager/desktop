@@ -406,6 +406,7 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
 
         const containerRect = scrollContainer.getBoundingClientRect();
         if (drag.height >= containerRect.height) return null;
+        const maxScrollTop = getMaxScrollTop(scrollContainer);
 
         const edgeSize = getAutoScrollEdgeSize(containerRect.height);
         const draggedCenter = drag.originalTop + drag.y + drag.height / 2;
@@ -421,7 +422,7 @@ export function useDragReorder({ onReorder }: DragReorderOptions) {
 
         if (
             distanceFromBottom < edgeSize
-            && scrollContainer.scrollTop < getMaxScrollTop(scrollContainer)
+            && scrollContainer.scrollTop < maxScrollTop
         ) {
             return {
                 direction: 1,
