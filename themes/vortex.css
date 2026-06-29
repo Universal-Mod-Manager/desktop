@@ -33,9 +33,9 @@
   --umm-transition: 250ms ease;
 }
 
-.umm-sidebar {
+.umm-drawer {
   background: #4c4c4c;
-  border-right: 1px solid #333333;
+  border-left: 1px solid #333333;
 }
 
 .umm-sidebar-header {

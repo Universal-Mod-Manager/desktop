@@ -21,23 +21,21 @@
         </span>
     </Select.Trigger>
     <Select.Content class="umm-select-content" sideOffset={4}>
-        <Select.Viewport class="umm-select-viewport">
-            {#each appState.plugins as plugin (plugin.id)}
-                <Select.Item
-                    class="umm-select-item"
-                    value={plugin.id}
-                    label={plugin.name}
-                >
-                    {#snippet children({ selected })}
-                        <span>{plugin.name}</span>
-                        {#if selected}
-                            <span class="umm-select-item-check">
-                                <Check size={14} />
-                            </span>
-                        {/if}
-                    {/snippet}
-                </Select.Item>
-            {/each}
-        </Select.Viewport>
+        {#each appState.plugins as plugin (plugin.id)}
+            <Select.Item
+                class="umm-select-item"
+                value={plugin.id}
+                label={plugin.name}
+            >
+                {#snippet children({ selected })}
+                    <span>{plugin.name}</span>
+                    {#if selected}
+                        <span class="umm-select-item-check">
+                            <Check size={14} />
+                        </span>
+                    {/if}
+                {/snippet}
+            </Select.Item>
+        {/each}
     </Select.Content>
 </Select.Root>
