@@ -41,6 +41,12 @@
   --umm-drag-surface: var(--umm-surface);
   --umm-drag-shadow: var(--umm-shadow-lg);
   --umm-drag-transition: 120ms ease;
+  --umm-drag-autoscroll-edge-ratio: 0.18;
+  --umm-drag-autoscroll-edge-min: 48;
+  --umm-drag-autoscroll-edge-max: 120;
+  --umm-drag-autoscroll-max-speed: 900;
+  --umm-drag-autoscroll-ramp-delay: 250;
+  --umm-drag-autoscroll-ramp-duration: 1200;
 }
 
 *, *::before, *::after {
