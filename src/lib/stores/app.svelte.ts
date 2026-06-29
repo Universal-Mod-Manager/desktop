@@ -32,6 +32,7 @@ class AppState {
     themeCss = $state("");
     gamePaths = $state<Record<string, string>>({});
     loading = $state(true);
+    modLoadError = $state<string | null>(null);
 
     async initialize() {
         try {
@@ -55,13 +56,19 @@ class AppState {
 
     async selectPlugin(pluginId: string) {
         this.activePluginId = pluginId;
+        this.modLoadError = null;
 
         if (!this.gamePaths[pluginId]) {
             this.mods = [];
             return;
         }
 
-        this.mods = unwrap(await commands.selectPlugin(pluginId));
+        try {
+            this.mods = unwrap(await commands.selectPlugin(pluginId));
+        } catch (error) {
+            this.mods = [];
+            this.modLoadError = error instanceof Error ? error.message : String(error);
+        }
     }
 
     async toggleMod(modId: string, enabled: boolean) {
@@ -91,11 +98,17 @@ class AppState {
         });
         if (!selected) return;
 
+        this.modLoadError = null;
         unwrap(await commands.setGamePath(pluginId, selected));
         this.gamePaths = { ...this.gamePaths, [pluginId]: selected };
 
         if (this.activePluginId === pluginId) {
-            this.mods = unwrap(await commands.selectPlugin(pluginId));
+            try {
+                this.mods = unwrap(await commands.selectPlugin(pluginId));
+            } catch (error) {
+                this.mods = [];
+                this.modLoadError = error instanceof Error ? error.message : String(error);
+            }
         }
     }
 

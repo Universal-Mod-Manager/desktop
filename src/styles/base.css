@@ -255,6 +255,16 @@ body {
   font-size: 14px;
 }
 
+.umm-error-message {
+  padding: var(--umm-space-lg);
+  border: 1px solid var(--umm-danger);
+  border-radius: var(--umm-radius-md);
+  background: color-mix(in srgb, var(--umm-danger) 10%, var(--umm-surface));
+  color: var(--umm-danger);
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
 .umm-mod-list-item {
   position: relative;
   display: flex;
