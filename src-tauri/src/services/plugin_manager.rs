@@ -84,9 +84,21 @@ impl PluginManager {
             .find(|p| p.info.id == plugin_id)
             .ok_or_else(|| anyhow::anyhow!("Plugin '{}' not found", plugin_id))?;
 
+        if plugin.metadata.wasm_path.trim().is_empty() {
+            anyhow::bail!(
+                "Plugin '{}' metadata.json has an empty wasm_path",
+                plugin_id
+            );
+        }
+
         let wasm_path = plugin.dir.join(&plugin.metadata.wasm_path);
         if !wasm_path.exists() {
-            anyhow::bail!("WASM file not found: {}", wasm_path.to_string_lossy());
+            anyhow::bail!(
+                "Plugin '{}' declares wasm_path '{}' in metadata.json, but the WASM file was not found at '{}'. Build the plugin or fix metadata.json.",
+                plugin_id,
+                plugin.metadata.wasm_path,
+                wasm_path.to_string_lossy()
+            );
         }
 
         let manifest = extism::Manifest::new([extism::Wasm::file(&wasm_path)]).disallow_all_hosts();
@@ -189,6 +201,31 @@ mod tests {
                 "probe operation should be blocked: {expected_operation}, output: {json}"
             );
         }
+    }
+
+    #[test]
+    fn plugin_call_reports_declared_missing_wasm_path() {
+        let temp_dir = TestDir::new("missing-plugin-wasm");
+        let plugin_dest = temp_dir.path.join("plugins/example");
+        fs::create_dir_all(&plugin_dest).expect("create plugin test directory");
+        fs::write(
+            plugin_dest.join("metadata.json"),
+            r#"{"name":"Example","wasm_path":"plugin.wasm","icon_path":"icon.png"}"#,
+        )
+        .expect("write plugin metadata");
+
+        let mut manager = PluginManager::new(&temp_dir.path);
+        manager.discover_plugins().expect("discover example plugin");
+
+        let message = manager
+            .call_plugin_fn("example", "get_game_metadata", "")
+            .expect_err("missing declared wasm should return an error")
+            .to_string();
+
+        assert!(
+            message.contains("Plugin 'example' declares wasm_path 'plugin.wasm' in metadata.json"),
+            "unexpected missing WASM error: {message}"
+        );
     }
 
     #[test]

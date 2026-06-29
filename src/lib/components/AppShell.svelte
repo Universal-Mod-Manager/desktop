@@ -37,6 +37,8 @@
                 <p class="umm-mod-list-empty">
                     Open settings to set the game directory and load mods
                 </p>
+            {:else if appState.modLoadError}
+                <p class="umm-error-message" role="alert">{appState.modLoadError}</p>
             {:else}
                 <ModList />
             {/if}
