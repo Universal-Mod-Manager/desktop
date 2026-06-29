@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+      - "test-v*"
   workflow_dispatch:
 
 concurrency:
@@ -64,6 +65,18 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install
+
+      - name: Set release type
+        id: release_type
+        run: |
+          if [[ "${{ github.ref_name }}" == test-* ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "draft=false" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "draft=true" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
 
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
