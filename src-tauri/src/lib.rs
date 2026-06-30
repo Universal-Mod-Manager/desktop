@@ -3,7 +3,7 @@ mod models;
 mod services;
 mod state;
 
-use models::AppConfig;
+use models::{AppConfig, GAME_INSTALL_PATH_ROOT_ID};
 use services::{ModManager, PluginManager, ThemeManager};
 use state::AppState;
 use std::sync::Mutex;
