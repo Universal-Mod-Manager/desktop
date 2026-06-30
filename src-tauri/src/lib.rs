@@ -3,7 +3,7 @@ mod models;
 mod services;
 mod state;
 
-use models::{AppConfig, GAME_INSTALL_PATH_ROOT_ID};
+use models::AppConfig;
 use services::{ModManager, PluginManager, ThemeManager};
 use state::AppState;
 use std::sync::Mutex;
@@ -48,6 +48,7 @@ pub fn run() {
             std::fs::create_dir_all(data_dir.join("profiles"))?;
 
             let config_path = data_dir.join("config.json");
+            #[cfg_attr(not(debug_assertions), allow(unused_mut))]
             let mut config: AppConfig = if config_path.exists() {
                 let content = std::fs::read_to_string(&config_path)?;
                 serde_json::from_str(&content).unwrap_or_default()
@@ -95,6 +96,8 @@ pub fn run() {
 
 #[cfg(debug_assertions)]
 fn setup_dev_environment(data_dir: &std::path::Path, config: &mut AppConfig) {
+    use models::GAME_INSTALL_PATH_ROOT_ID;
+
     let project_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
