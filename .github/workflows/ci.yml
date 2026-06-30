@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: "24"
+  RUST_VERSION: stable
+
+jobs:
+  frontend:
+    name: Frontend (Lint/Test)
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: SvelteKit Sync
+        run: pnpm exec svelte-kit sync
+
+      - name: Lint & Check
+        run: |
+          pnpm svelte-check
+
+      - name: Unit tests
+        run: pnpm test --run
+
+      - name: Build
+        run: pnpm build:web
+
+  rust:
+    name: Rust (Lint/Test)
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+          targets: wasm32-wasip1, wasm32-unknown-unknown
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Format Check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Clippy (Linter)
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Build plugins for tests
+        run: |
+          cargo build --release --target wasm32-wasip1 --manifest-path plugins/security-test/Cargo.toml
+          cargo build --release --target wasm32-unknown-unknown --manifest-path plugins/skyrim-se/Cargo.toml
+          cargo build --release --target wasm32-unknown-unknown --manifest-path plugins/witcher3/Cargo.toml
+
+      - name: Rust Tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
