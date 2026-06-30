@@ -53,17 +53,25 @@ async selectPlugin(pluginId: string) : Promise<Result<ModInfo[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async getGamePaths() : Promise<Result<Partial<{ [key in string]: string }>, string>> {
+async getPluginPathRoots(pluginId: string) : Promise<Result<GamePathRoot[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_game_paths") };
+    return { status: "ok", data: await TAURI_INVOKE("get_plugin_path_roots", { pluginId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async setGamePath(pluginId: string, path: string) : Promise<Result<null, string>> {
+async getPluginPaths() : Promise<Result<Partial<{ [key in string]: Partial<{ [key in string]: string }> }>, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("set_game_path", { pluginId, path }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_plugin_paths") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setPluginPath(pluginId: string, rootId: string, path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_plugin_path", { pluginId, rootId, path }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -113,6 +121,7 @@ async setActiveTheme(themeName: string) : Promise<Result<string, string>> {
 
 /** user-defined types **/
 
+export type GamePathRoot = { id: string; name: string; description: string }
 export type ModInfo = { id: string; name: string; version: string; description: string; enabled: boolean; priority: number }
 export type PluginInfo = { id: string; name: string; icon_path: string }
 export type ThemeInfo = { name: string; is_active: boolean }
