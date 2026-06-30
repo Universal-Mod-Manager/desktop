@@ -1,4 +1,4 @@
-import { commands, type ModInfo, type PluginInfo, type ThemeInfo, type Result } from "$lib/bindings";
+import { commands, type GamePathRoot, type ModInfo, type PluginInfo, type ThemeInfo, type Result } from "$lib/bindings";
 import { open } from "@tauri-apps/plugin-dialog";
 
 function unwrap<T>(result: Result<T, string>): T {
@@ -6,12 +6,18 @@ function unwrap<T>(result: Result<T, string>): T {
     throw new Error(result.error);
 }
 
-function compactStringRecord(record: Partial<Record<string, string>>): Record<string, string> {
-    const entries = Object.entries(record).filter(
-        (entry): entry is [string, string] => typeof entry[1] === "string",
-    );
+function compactPluginPaths(
+    record: Partial<Record<string, Partial<Record<string, string>>>>,
+): Record<string, Record<string, string>> {
+    const pluginEntries = Object.entries(record).map(([pluginId, rootPaths]) => {
+        const pathEntries = Object.entries(rootPaths ?? {}).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+        );
 
-    return Object.fromEntries(entries);
+        return [pluginId, Object.fromEntries(pathEntries)] as const;
+    });
+
+    return Object.fromEntries(pluginEntries);
 }
 
 function reorderModList(mods: ModInfo[], modIds: string[]): ModInfo[] {
@@ -30,7 +36,8 @@ class AppState {
     themes = $state<ThemeInfo[]>([]);
     activeThemeName = $state("");
     themeCss = $state("");
-    gamePaths = $state<Record<string, string>>({});
+    pluginPaths = $state<Record<string, Record<string, string>>>({});
+    pluginPathRoots = $state<Record<string, GamePathRoot[]>>({});
     loading = $state(true);
     modLoadError = $state<string | null>(null);
 
@@ -38,7 +45,7 @@ class AppState {
         try {
             this.plugins = unwrap(await commands.listPlugins());
             this.themes = unwrap(await commands.listThemes());
-            this.gamePaths = compactStringRecord(unwrap(await commands.getGamePaths()));
+            this.pluginPaths = compactPluginPaths(unwrap(await commands.getPluginPaths()));
             this.activeThemeName = unwrap(await commands.getActiveTheme());
             if (this.activeThemeName) {
                 this.themeCss = unwrap(await commands.getThemeCss(this.activeThemeName));
@@ -47,7 +54,15 @@ class AppState {
             const active = unwrap(await commands.getActivePlugin());
             if (active) {
                 this.activePluginId = active;
-                this.mods = unwrap(await commands.listMods());
+                try {
+                    await this.loadPluginPathRoots(active);
+                    if (this.hasConfiguredPluginPaths(active)) {
+                        this.mods = unwrap(await commands.listMods());
+                    }
+                } catch (error) {
+                    this.mods = [];
+                    this.modLoadError = error instanceof Error ? error.message : String(error);
+                }
             }
         } finally {
             this.loading = false;
@@ -58,17 +73,20 @@ class AppState {
         this.activePluginId = pluginId;
         this.modLoadError = null;
 
-        if (!this.gamePaths[pluginId]) {
+        try {
+            await this.loadPluginPathRoots(pluginId);
+        } catch (error) {
+            this.mods = [];
+            this.modLoadError = error instanceof Error ? error.message : String(error);
+            return;
+        }
+
+        if (!this.hasConfiguredPluginPaths(pluginId)) {
             this.mods = [];
             return;
         }
 
-        try {
-            this.mods = unwrap(await commands.selectPlugin(pluginId));
-        } catch (error) {
-            this.mods = [];
-            this.modLoadError = error instanceof Error ? error.message : String(error);
-        }
+        await this.loadSelectedPluginMods(pluginId);
     }
 
     async toggleMod(modId: string, enabled: boolean) {
@@ -90,25 +108,58 @@ class AppState {
         }
     }
 
-    async browseGamePath(pluginId: string) {
+    async browsePluginPath(pluginId: string, rootId: string) {
+        const roots = await this.loadPluginPathRoots(pluginId);
+        const root = roots.find((pathRoot) => pathRoot.id === rootId);
         const selected = await open({
             directory: true,
             multiple: false,
-            title: "Select game directory",
+            title: `Select ${root?.name ?? "plugin path"}`,
         });
-        if (!selected) return;
+        if (!selected || Array.isArray(selected)) return;
 
         this.modLoadError = null;
-        unwrap(await commands.setGamePath(pluginId, selected));
-        this.gamePaths = { ...this.gamePaths, [pluginId]: selected };
+        unwrap(await commands.setPluginPath(pluginId, rootId, selected));
+        this.pluginPaths = {
+            ...this.pluginPaths,
+            [pluginId]: {
+                ...(this.pluginPaths[pluginId] ?? {}),
+                [rootId]: selected,
+            },
+        };
 
         if (this.activePluginId === pluginId) {
-            try {
-                this.mods = unwrap(await commands.selectPlugin(pluginId));
-            } catch (error) {
+            if (this.hasConfiguredPluginPaths(pluginId)) {
+                await this.loadSelectedPluginMods(pluginId);
+            } else {
                 this.mods = [];
-                this.modLoadError = error instanceof Error ? error.message : String(error);
             }
+        }
+    }
+
+    async loadPluginPathRoots(pluginId: string): Promise<GamePathRoot[]> {
+        const cached = this.pluginPathRoots[pluginId];
+        if (cached) return cached;
+
+        const roots = unwrap(await commands.getPluginPathRoots(pluginId));
+        this.pluginPathRoots = { ...this.pluginPathRoots, [pluginId]: roots };
+        return roots;
+    }
+
+    hasConfiguredPluginPaths(pluginId: string): boolean {
+        const roots = this.pluginPathRoots[pluginId] ?? [];
+        const paths = this.pluginPaths[pluginId] ?? {};
+
+        return roots.length > 0 && roots.every((root) => !!paths[root.id]);
+    }
+
+
+    async loadSelectedPluginMods(pluginId: string) {
+        try {
+            this.mods = unwrap(await commands.selectPlugin(pluginId));
+        } catch (error) {
+            this.mods = [];
+            this.modLoadError = error instanceof Error ? error.message : String(error);
         }
     }
 

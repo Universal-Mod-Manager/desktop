@@ -1,12 +1,45 @@
 use extism_pdk::*;
 use serde::{Deserialize, Serialize};
 
+const GAME_ROOT_ID: &str = "game";
+
 #[derive(Serialize)]
 struct GameMetadata {
+    api_version: u32,
     name: String,
-    mod_directory: String,
-    load_order_file: String,
     executable: String,
+    path_roots: Vec<GamePathRoot>,
+    mod_discovery: ModDiscovery,
+    load_order_writes: Vec<LoadOrderWriteTarget>,
+}
+
+#[derive(Serialize)]
+struct GamePathRoot {
+    id: String,
+    name: String,
+    description: String,
+}
+
+#[derive(Serialize)]
+struct ModDiscovery {
+    root_id: String,
+    relative_path: String,
+    mode: ModDiscoveryMode,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ModDiscoveryMode {
+    DirectoryMods {
+        required_prefix: Option<String>,
+        metadata_file: Option<String>,
+    },
+}
+
+#[derive(Serialize)]
+struct LoadOrderWriteTarget {
+    root_id: String,
+    relative_path: String,
 }
 
 #[derive(Deserialize)]
@@ -17,12 +50,18 @@ struct ModEntry {
 }
 
 #[derive(Deserialize)]
-struct WriteLoadOrderInput {
+struct BuildLoadOrderInput {
     mods: Vec<ModEntry>,
 }
 
 #[derive(Serialize)]
-struct WriteLoadOrderOutput {
+struct BuildLoadOrderOutput {
+    writes: Vec<GameFileWrite>,
+}
+
+#[derive(Serialize)]
+struct GameFileWrite {
+    root_id: String,
     relative_path: String,
     content: String,
 }
@@ -55,37 +94,57 @@ fn probe_result(operation: &str, result: Result<String, String>) -> ProbeResult 
 }
 
 #[plugin_fn]
-pub fn get_game_name() -> FnResult<String> {
-    Ok("Security Test Plugin".to_string())
-}
-
-#[plugin_fn]
 pub fn get_game_metadata() -> FnResult<String> {
     let metadata = GameMetadata {
+        api_version: 2,
         name: "Security Test Plugin".to_string(),
-        mod_directory: "mods".to_string(),
-        load_order_file: "security-loadorder.txt".to_string(),
         executable: "security-test.exe".to_string(),
+        path_roots: vec![GamePathRoot {
+            id: GAME_ROOT_ID.to_string(),
+            name: "Security test game folder".to_string(),
+            description: "Folder used for security probe mod discovery.".to_string(),
+        }],
+        mod_discovery: ModDiscovery {
+            root_id: GAME_ROOT_ID.to_string(),
+            relative_path: "mods".to_string(),
+            mode: ModDiscoveryMode::DirectoryMods {
+                required_prefix: None,
+                metadata_file: None,
+            },
+        },
+        load_order_writes: vec![LoadOrderWriteTarget {
+            root_id: GAME_ROOT_ID.to_string(),
+            relative_path: "security-loadorder.txt".to_string(),
+        }],
     };
     Ok(serde_json::to_string(&metadata)?)
 }
 
 #[plugin_fn]
-pub fn write_load_order(input: String) -> FnResult<String> {
-    let data: WriteLoadOrderInput = serde_json::from_str(&input)?;
-
-    let mut enabled: Vec<&ModEntry> = data.mods.iter().filter(|m| m.enabled).collect();
-    enabled.sort_by_key(|m| m.priority);
-
-    let content = enabled
+pub fn build_load_order(input: String) -> FnResult<String> {
+    let input: BuildLoadOrderInput = serde_json::from_str(&input)?;
+    let mut enabled: Vec<&ModEntry> = input
+        .mods
         .iter()
-        .map(|m| m.id.as_str())
+        .filter(|game_mod| game_mod.enabled)
+        .collect();
+    enabled.sort_by_key(|game_mod| game_mod.priority);
+
+    let mut content = enabled
+        .iter()
+        .map(|game_mod| game_mod.id.as_str())
         .collect::<Vec<_>>()
         .join("\n");
+    if !content.is_empty() {
+        content.push('\n');
+    }
 
-    let output = WriteLoadOrderOutput {
-        relative_path: "security-loadorder.txt".to_string(),
-        content,
+    let output = BuildLoadOrderOutput {
+        writes: vec![GameFileWrite {
+            root_id: GAME_ROOT_ID.to_string(),
+            relative_path: "security-loadorder.txt".to_string(),
+            content,
+        }],
     };
     Ok(serde_json::to_string(&output)?)
 }
