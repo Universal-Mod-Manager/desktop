@@ -2,36 +2,39 @@
     import { FolderOpen } from "lucide-svelte";
     import { appState } from "$lib/stores/app.svelte";
 
-    const currentPath = $derived(
-        appState.activePluginId
-            ? appState.gamePaths[appState.activePluginId]
-            : undefined,
+    const activePluginId = $derived(appState.activePluginId);
+    const pathRoots = $derived(
+        activePluginId ? (appState.pluginPathRoots[activePluginId] ?? []) : [],
     );
 
-    const displayPath = $derived(
-        currentPath
-            ? currentPath.length > 30
-                ? "..." + currentPath.slice(-30)
-                : currentPath
-            : "No path set",
-    );
+    function displayPath(path: string | undefined): string {
+        if (!path) return "No path set";
+        return path.length > 30 ? "..." + path.slice(-30) : path;
+    }
 </script>
 
-{#if appState.activePluginId}
+{#if activePluginId && pathRoots.length > 0}
     <div class="umm-game-path">
-        <button
-            class="umm-game-path-btn"
-            onclick={() =>
-                appState.activePluginId &&
-                appState.browseGamePath(appState.activePluginId)}
-            title={currentPath ?? "Click to set game directory"}
-        >
-            <span class="umm-game-path-icon">
-                <FolderOpen size={14} />
-            </span>
-            <span class="umm-game-path-text" class:umm-game-path-text--empty={!currentPath}>
-                {displayPath}
-            </span>
-        </button>
+        {#each pathRoots as pathRoot (pathRoot.id)}
+            {@const currentPath = appState.pluginPaths[activePluginId]?.[pathRoot.id]}
+            <div class="umm-game-path-item">
+                <span class="umm-game-path-label">{pathRoot.name}</span>
+                <button
+                    class="umm-game-path-btn"
+                    onclick={() => appState.browsePluginPath(activePluginId, pathRoot.id)}
+                    title={currentPath ?? pathRoot.description}
+                >
+                    <span class="umm-game-path-icon">
+                        <FolderOpen size={14} />
+                    </span>
+                    <span class="umm-game-path-text" class:umm-game-path-text--empty={!currentPath}>
+                        {displayPath(currentPath)}
+                    </span>
+                </button>
+                {#if pathRoot.description}
+                    <span class="umm-game-path-description">{pathRoot.description}</span>
+                {/if}
+            </div>
+        {/each}
     </div>
 {/if}
