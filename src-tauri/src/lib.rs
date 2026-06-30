@@ -3,7 +3,7 @@ mod models;
 mod services;
 mod state;
 
-use models::AppConfig;
+use models::{AppConfig, GAME_INSTALL_PATH_ROOT_ID};
 use services::{ModManager, PluginManager, ThemeManager};
 use state::AppState;
 use std::sync::Mutex;
@@ -19,8 +19,9 @@ pub fn run() {
             commands::plugins::list_plugins,
             commands::plugins::get_active_plugin,
             commands::plugins::select_plugin,
-            commands::settings::get_game_paths,
-            commands::settings::set_game_path,
+            commands::settings::get_plugin_path_roots,
+            commands::settings::get_plugin_paths,
+            commands::settings::set_plugin_path,
             commands::themes::list_themes,
             commands::themes::get_theme_css,
             commands::themes::get_active_theme,
@@ -67,14 +68,14 @@ pub fn run() {
 
             let mut mod_manager = ModManager::new(&data_dir);
             if let Some(plugin_id) = &config.active_plugin {
-                if let Some(game_path) = config.game_paths.get(plugin_id) {
-                    let mod_dir = plugin_manager
-                        .call_plugin_fn(plugin_id, "get_game_metadata", "")
-                        .ok()
-                        .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
-                        .and_then(|v| v["mod_directory"].as_str().map(|s| s.to_string()))
-                        .unwrap_or_else(|| "mods".to_string());
-                    let _ = mod_manager.load_mods_for_plugin(plugin_id, game_path, &mod_dir);
+                if let Ok(metadata) = plugin_manager.game_metadata(plugin_id) {
+                    if let Ok(path_roots) = config.configured_path_roots(plugin_id, &metadata) {
+                        let _ = mod_manager.load_mods_for_plugin(
+                            plugin_id,
+                            &path_roots,
+                            &metadata.mod_discovery,
+                        );
+                    }
                 }
             }
 
@@ -99,17 +100,43 @@ fn setup_dev_environment(data_dir: &std::path::Path, config: &mut AppConfig) {
         .unwrap()
         .to_path_buf();
 
-    for (id, dir_name) in [
-        ("skyrim-se", "skyrim-se"),
-        ("witcher3", "witcher3"),
-        ("security-test", "security-test"),
+    for (plugin_id, roots) in [
+        (
+            "skyrim-se",
+            &[
+                (GAME_INSTALL_PATH_ROOT_ID, "skyrim-se"),
+                ("local_app_data", "skyrim-se-local-app-data"),
+            ][..],
+        ),
+        (
+            "witcher3",
+            &[
+                (GAME_INSTALL_PATH_ROOT_ID, "witcher3"),
+                ("documents", "witcher3-documents"),
+            ][..],
+        ),
+        (
+            "security-test",
+            &[(GAME_INSTALL_PATH_ROOT_ID, "security-test")][..],
+        ),
     ] {
-        if !config.game_paths.contains_key(id) {
-            let fake_path = project_root.join(format!(".ignored/fake-games/{}", dir_name));
+        for (root_id, dir_name) in roots {
+            let has_path = config
+                .plugin_paths
+                .get(plugin_id)
+                .and_then(|paths| paths.get(*root_id))
+                .is_some();
+            if has_path {
+                continue;
+            }
+
+            let fake_path = project_root.join(format!(".ignored/fake-games/{dir_name}"));
             if fake_path.exists() {
                 config
-                    .game_paths
-                    .insert(id.to_string(), fake_path.to_string_lossy().to_string());
+                    .plugin_paths
+                    .entry(plugin_id.to_string())
+                    .or_default()
+                    .insert(root_id.to_string(), fake_path.to_string_lossy().to_string());
             }
         }
     }

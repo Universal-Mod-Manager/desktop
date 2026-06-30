@@ -3,9 +3,9 @@
     import ModList from "./ModList.svelte";
     import { appState } from "$lib/stores/app.svelte";
 
-    const hasGamePath = $derived(
+    const hasRequiredPaths = $derived(
         appState.activePluginId
-            ? !!appState.gamePaths[appState.activePluginId]
+            ? appState.hasConfiguredPluginPaths(appState.activePluginId)
             : false,
     );
 
@@ -20,7 +20,7 @@
         <header class="umm-content-header">
             <div>
                 <h1 class="umm-content-title">{contentTitle}</h1>
-                {#if appState.activePluginId && hasGamePath}
+                {#if appState.activePluginId && hasRequiredPaths}
                     <p class="umm-content-subtitle">
                         {appState.mods.length} mod{appState.mods.length !== 1 ? "s" : ""} loaded
                     </p>
@@ -33,9 +33,9 @@
                 <p class="umm-mod-list-empty">Loading...</p>
             {:else if !appState.activePluginId}
                 <p class="umm-mod-list-empty">Select a game plugin to get started</p>
-            {:else if !hasGamePath}
+            {:else if !hasRequiredPaths}
                 <p class="umm-mod-list-empty">
-                    Open settings to set the game directory and load mods
+                    Open settings to set the required game paths and load mods
                 </p>
             {:else if appState.modLoadError}
                 <p class="umm-error-message" role="alert">{appState.modLoadError}</p>

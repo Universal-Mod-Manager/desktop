@@ -28,32 +28,22 @@ pub fn select_plugin(
             .map_err(|e| e.to_string())?;
     }
 
-    let mod_directory = {
+    let metadata = {
         let plugin_mgr = state.plugin_manager.lock().map_err(|e| e.to_string())?;
-        let metadata_json = plugin_mgr
-            .call_plugin_fn(&plugin_id, "get_game_metadata", "")
-            .map_err(|e| e.to_string())?;
-        let metadata: serde_json::Value =
-            serde_json::from_str(&metadata_json).map_err(|e| e.to_string())?;
-        metadata["mod_directory"]
-            .as_str()
-            .unwrap_or("mods")
-            .to_string()
+        plugin_mgr
+            .game_metadata(&plugin_id)
+            .map_err(|e| e.to_string())?
     };
 
-    let game_path = {
+    let path_roots = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
-        config
-            .game_paths
-            .get(&plugin_id)
-            .ok_or_else(|| format!("No game path configured for '{}'", plugin_id))?
-            .clone()
+        config.configured_path_roots(&plugin_id, &metadata)?
     };
 
     let mods = {
         let mut mod_mgr = state.mod_manager.lock().map_err(|e| e.to_string())?;
         mod_mgr
-            .load_mods_for_plugin(&plugin_id, &game_path, &mod_directory)
+            .load_mods_for_plugin(&plugin_id, &path_roots, &metadata.mod_discovery)
             .map_err(|e| e.to_string())?;
         mod_mgr.list_mods()
     };

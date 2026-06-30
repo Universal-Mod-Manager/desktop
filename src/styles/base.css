@@ -563,7 +563,24 @@ body {
 }
 
 .umm-game-path {
+  display: flex;
+  flex-direction: column;
+  gap: var(--umm-space-sm);
   margin-top: var(--umm-space-sm);
+}
+
+.umm-game-path-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--umm-space-2xs);
+}
+
+.umm-game-path-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--umm-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .umm-game-path-btn {
@@ -606,6 +623,12 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.umm-game-path-description {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--umm-text-muted);
 }
 
 .umm-game-path-text--empty {
