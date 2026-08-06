@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: self-hosted
+            os-name: Linux
+          - platform: windows-latest
+            os-name: Windows
+          - platform: macos-latest
+            os-name: MacOS
+
+    name: Build – ${{ matrix.os-name }}
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.os-name == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils \
+            libssl-dev \
+            pkg-config \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os-name == 'MacOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - run: pnpm install
+
+      - run: pnpm exec svelte-kit sync
+
+      - uses: tauri-apps/tauri-action@v0
+        with:
+          args: ${{ matrix.os-name == 'macOS' && '--target universal-apple-darwin' || '' }}
